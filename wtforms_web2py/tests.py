@@ -66,7 +66,11 @@ class QuerySelectFieldTest(unittest.TestCase):
         self.db_set = Mock(**{"select.return_value": objects})
         self.db = Mock(return_value=self.db_set)
         gluon = Mock(current=Mock(globalenv={"db": self.db}))
+        self._saved_gluon = sys.modules.get('gluon')
         sys.modules['gluon'] = gluon
+
+    def tearDown(self):
+        sys.modules['gluon'] = self._saved_gluon
 
     def test_field_outputs_whatever_it_should(self):
         query = object()
