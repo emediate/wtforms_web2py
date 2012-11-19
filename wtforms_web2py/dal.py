@@ -1,5 +1,5 @@
-from wtforms import fields as f
-from wtforms import validators
+from wtforms import Form, validators, fields as f
+from gluon import IS_IN_SET
 
 
 class ModelConverterBase(object):
@@ -23,6 +23,9 @@ class ModelConverterBase(object):
         else:
             kwargs["validators"].append(validators.Optional())
         # TODO: field.unique?
+
+        if isinstance(field.requires, IS_IN_SET):
+            return f.SelectField(choices=field.requires.options(), **kwargs)
 
         ftype = field.type
         if ftype in self.converters:
@@ -48,10 +51,11 @@ class ModelConverter(ModelConverterBase):
         kwargs["validators"].append(validators.Length(max=field.length))
         return f.TextField(**kwargs)
 
+    def conv_boolean(self, model, field, kwargs):
+        return f.BooleanField(**kwargs)
+
 # types:
 # * id
-# * integer
-# * string
 # * date
 # * datetime
 # * text
@@ -75,3 +79,9 @@ def model_fields(model, only=None, exclude=None, field_args=None, converter=None
             field_dict[name] = field
 
     return field_dict
+
+
+def model_form(table, base_class=Form, only=None, exclude=None, field_args=None,
+               converter=None):
+    field_dict = model_fields(table, only, exclude, field_args, converter)
+    return type(table._tablename.title() + "Form", (base_class,), field_dict)
