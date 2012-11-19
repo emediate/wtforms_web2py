@@ -13,7 +13,6 @@ class MySelectField(SelectField):
         super(MySelectField, self).__init__(label, validators, **kwargs)
 
     def process_data(self, value):
-        import ipdb; ipdb.set_trace()
         if value is None:
             self.data = None
         else:
@@ -23,7 +22,6 @@ class MySelectField(SelectField):
                 self.data = None
 
     def process_formdata(self, valuelist):
-        import ipdb; ipdb.set_trace()
         if valuelist and valuelist[0] == "__None":
             self.data = None
         else:
@@ -66,7 +64,9 @@ class QuerySelectField(SelectFieldBase):
 
     def _get_object_list(self):
         get_pk = self.get_pk
-        return [ (get_pk(row), row) for row in self.query.select(orderby=self.orderby) ]
+        from gluon import current
+        db = current.globalenv["db"]
+        return [(get_pk(row), row) for row in db(self.query).select(orderby=self.orderby)]
 
     def iter_choices(self):
         if self.allow_blank:
