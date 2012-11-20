@@ -1,5 +1,6 @@
 from wtforms import Form, validators, fields as f
 from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
+from fields import QuerySelectField
 
 
 class ModelConverterBase(object):
@@ -36,6 +37,9 @@ class ModelConverterBase(object):
         ftype = field.type
         if ftype in self.converters:
             return self.converters[ftype](model, field, kwargs)
+        elif ftype.startswith("reference "):
+            _, other_table_name = ftype.split()
+            return self.conv_reference(model, field, kwargs, other_table_name)
         else:
             converter = getattr(self, "conv_%s" % ftype, None)
             if converter is not None:
@@ -59,6 +63,12 @@ class ModelConverter(ModelConverterBase):
 
     def conv_boolean(self, model, field, kwargs):
         return f.BooleanField(**kwargs)
+
+    def conv_reference(self, model, field, kwargs, other_table_name):
+        from gluon import current
+        db = current.globalenv["db"]
+        other_table = getattr(db, other_table_name)
+        return QuerySelectField(query=other_table, **kwargs)
 
 # types:
 # * id
