@@ -106,12 +106,13 @@ class QuerySelectFieldTest(unittest.TestCase):
 class TestModelForm(unittest.TestCase):
 
     def setUp(self):
-        from gluon import DAL, Field, IS_IN_SET
+        from gluon import DAL, Field, IS_IN_SET, IS_INT_IN_RANGE
         self.dal = DAL(None)
         self.table = self.dal.define_table(
             "user",
             Field("name", label="The Name", required=True, length=20),
-            Field("age", "integer", required=True, comment="User's age"),
+            Field("age", "integer", required=True, comment="User's age",
+                  requires=IS_INT_IN_RANGE(0, 100)),
             Field("eye_color"),
             Field("sex", requires=IS_IN_SET(("male", "female"), zero=None)),
             Field("get_spam_from_us", "boolean", default=True),
@@ -156,8 +157,8 @@ class TestModelForm(unittest.TestCase):
         form = F()
         for x in form: print x
 
-    def test_some_validators(self):
-        pass
+    def test_some_more_validators(self):
+        self.assertTrue(contains_validator(self.form.age, validators.NumberRange))
 
     def test_fields_with_options(self):
         self.assertEqual([('male', 'male', False), ('female', 'female', False)],

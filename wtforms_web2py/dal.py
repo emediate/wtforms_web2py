@@ -1,5 +1,5 @@
 from wtforms import Form, validators, fields as f
-from gluon import IS_IN_SET
+from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
 
 
 class ModelConverterBase(object):
@@ -26,6 +26,12 @@ class ModelConverterBase(object):
 
         if isinstance(field.requires, IS_IN_SET):
             return f.SelectField(choices=field.requires.options(), **kwargs)
+        elif isinstance(field.requires, IS_INT_IN_RANGE):
+            kwargs["validators"].append(validators.NumberRange(
+                min=field.requires.minimum, max=field.requires.maximum - 1))
+        elif isinstance(field.requires, IS_FLOAT_IN_RANGE):
+            kwargs["validators"].append(validators.NumberRange(
+                min=field.requires.minimum, max=field.requires.maximum))
 
         ftype = field.type
         if ftype in self.converters:
