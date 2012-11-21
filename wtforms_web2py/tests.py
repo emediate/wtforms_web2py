@@ -2,14 +2,15 @@ import sys
 import unittest
 from mock import Mock
 
-from wtforms import Form, validators
+from wtforms import Form, validators as v
 from wtforms.compat import text_type
 
 import gluon
-from gluon import DAL, Field, IS_IN_SET, IS_INT_IN_RANGE, Field, IS_IN_DB
+from gluon import (DAL, Field, IS_EMPTY_OR, IS_IN_SET, IS_INT_IN_RANGE,
+                   IS_IN_DB, IS_LIST_OF)
 
 from fields import MySelectField, QuerySelectField
-from dal import model_form
+from dal import model_form, ModelConverter
 
 
 class DummyPostData(dict):
@@ -51,7 +52,7 @@ class TestMySelectField(unittest.TestCase):
                 (2, "two"),
                 (3, "three"),
             )
-            select = MySelectField("label", [validators.Optional()],
+            select = MySelectField("label", [v.Optional()],
                                 choices=CHOICES)
         self.form = MyForm()
 
@@ -150,8 +151,8 @@ class TestModelForm(BaseDALTest):
             Field("age", "integer", required=True, comment="User's age",
                   requires=IS_INT_IN_RANGE(0, 100)),
             Field("eye_color"),
-            Field("sex",
-                  requires=IS_IN_SET(("male", "female"), zero=None)),
+            Field("sex", requires=IS_EMPTY_OR(
+                                  IS_IN_SET(("male", "female")))),
             Field("get_spam_from_us", "boolean", default=True),
         )
         self.F = model_form(self.table, field_args={
@@ -173,29 +174,25 @@ class TestModelForm(BaseDALTest):
 
     def test_max_length(self):
         self.assertTrue(
-            contains_validator(self.form.name, validators.Length))
+            contains_validator(self.form.name, v.Length))
         self.assertFalse(
-            contains_validator(self.form.age, validators.Length))
+            contains_validator(self.form.age, v.Length))
 
     def test_optional(self):
         self.assertTrue(
-            contains_validator(self.form.eye_color, validators.Optional))
+            contains_validator(self.form.eye_color, v.Optional))
         self.assertFalse(
-            contains_validator(self.form.name, validators.Optional))
+            contains_validator(self.form.name, v.Optional))
 
     def test_required(self):
         self.assertFalse(
-            contains_validator(self.form.eye_color, validators.Required))
+            contains_validator(self.form.eye_color, v.Required))
         self.assertTrue(
-            contains_validator(self.form.name, validators.Required))
-
-    def test_some_more_validators(self):
-        self.assertTrue(
-            contains_validator(self.form.age, validators.NumberRange))
+            contains_validator(self.form.name, v.Required))
 
     def test_fields_with_options(self):
         self.assertEqual(
-            [('male', 'male', False), ('female', 'female', False)],
+            [('', '', False), ('male', 'male', False), ('female', 'female', False)],
             self.form.sex())
 
     def test_default(self):
@@ -225,6 +222,24 @@ class TestModelFormWithDb(BaseDALTest):
                            response=objects)
         self.assertEqual(self.form.user(),
                          [(1, u'Vasya', False), (2, u'Petya', False)])
+
+
+class TestValidators(unittest.TestCase):
+
+    def setUp(self):
+        self.converter = ModelConverter()
+
+    def test_unwinding(self):
+        validators = self.converter.unwind_requires([
+            IS_LIST_OF(IS_EMPTY_OR(IS_INT_IN_RANGE(0, 100))),
+            IS_IN_SET((1,2,3)),
+        ])
+        names = [v.__class__.__name__ for v in validators]
+        self.assertEquals(names, ['IS_LIST_OF', 'IS_IN_SET', 'IS_EMPTY_OR', 'IS_INT_IN_RANGE'])
+
+    def test_some_more_validators(self):
+        validators, _ = self.converter.convert_requires(IS_INT_IN_RANGE(1, 100))
+        self.assertIsInstance(validators[0], v.NumberRange)
 
 
 if __name__ == "__main__":

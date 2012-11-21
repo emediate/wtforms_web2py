@@ -1,5 +1,5 @@
 import re
-from wtforms import validators, widgets, fields as f
+from wtforms import validators as v, widgets, fields as f
 from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
 from fields import QuerySelectField
 from form import Form
@@ -22,22 +22,19 @@ class ModelConverterBase(object):
             kwargs.update(field_args)
 
         if field.required:
-            kwargs["validators"].append(validators.Required())
+            kwargs["validators"].append(v.Required())
         else:
-            kwargs["validators"].append(validators.Optional())
-        # TODO: field.unique?
+            kwargs["validators"].append(v.Optional())
+        # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
+        # TODO: field.length vs IS_LENGTH ?
 
-        if isinstance(field.requires, IS_INT_IN_RANGE):
-            kwargs["validators"].append(validators.NumberRange(
-                min=field.requires.minimum, max=field.requires.maximum - 1))
-        elif isinstance(field.requires, IS_FLOAT_IN_RANGE):
-            kwargs["validators"].append(validators.NumberRange(
-                min=field.requires.minimum, max=field.requires.maximum))
+        validators, choices = self.convert_requires(field.requires)
+        kwargs["validators"].extend(validators)
+        if choices:
+            return f.SelectField(choices=choices, **kwargs)
 
         ftype = field.type
-        if isinstance(field.requires, IS_IN_SET):
-            return f.SelectField(choices=field.requires.options(), **kwargs)
-        elif ftype in self.converters:
+        if ftype in self.converters:
             return self.converters[ftype](model, field, kwargs)
         else:
             for regex, converter in self.REGEX_CONVERTERS.items():
@@ -47,6 +44,36 @@ class ModelConverterBase(object):
             converter = getattr(self, "conv_%s" % ftype, None)
             if converter is not None:
                 return converter(model, field, kwargs)
+
+    def convert_requires(self, requires):
+        validators = []
+        choices = []
+        for w2p_validator in self.unwind_requires(requires):
+            if isinstance(w2p_validator, IS_INT_IN_RANGE):
+                validators.append(v.NumberRange(
+                    min=w2p_validator.minimum, max=w2p_validator.maximum - 1))
+            elif isinstance(w2p_validator, IS_FLOAT_IN_RANGE):
+                validators.append(v.NumberRange(
+                    min=w2p_validator.minimum, max=w2p_validator.maximum))
+            elif isinstance(w2p_validator, IS_IN_SET):
+                choices = w2p_validator.options()
+        return validators, choices
+
+    def unwind_requires(self, requires):
+        """
+        Unwinds `webpy_field.requires` into a flat list of validators.
+
+        `requires` can be somewhat complex structure of validators:
+        * it can be either a validator instance or a list of them;
+        * IS_EMPTY_OR and IS_LIST_OF validators contain another validator inside
+          them.
+        """
+        if not isinstance(requires, (list, tuple)):
+            requires = [requires]
+        for w2p_validator in requires[:]:
+            if hasattr(w2p_validator, "other"):
+                requires.extend(self.unwind_requires(w2p_validator.other))
+        return requires
 
 
 class ModelConverter(ModelConverterBase):
@@ -83,7 +110,7 @@ class ModelConverter(ModelConverterBase):
         return decorator
 
     def conv_string(self, model, field, kwargs):
-        kwargs["validators"].append(validators.Length(max=field.length))
+        kwargs["validators"].append(v.Length(max=field.length))
         return f.TextField(**kwargs)
     conv_text = conv_string
 
@@ -92,7 +119,7 @@ class ModelConverter(ModelConverterBase):
             "widget": widgets.HiddenInput()
         }
         defaults.update(kwargs)
-        defaults["validators"].append(validators.NumberRange(min=1))
+        defaults["validators"].append(v.NumberRange(min=1))
         return f.IntegerField(**defaults)
 
 
