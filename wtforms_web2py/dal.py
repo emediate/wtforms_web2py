@@ -1,5 +1,5 @@
 import re
-from wtforms import Form, validators, fields as f
+from wtforms import Form, validators, widgets, fields as f
 from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
 from fields import QuerySelectField
 
@@ -51,7 +51,7 @@ class ModelConverterBase(object):
 class ModelConverter(ModelConverterBase):
 
     DEFAULT_SIMPLE_CONVERSIONS = {
-        f.IntegerField: ["id", "integer"],
+        f.IntegerField: ["integer"],
         f.BooleanField: ["boolean"],
         f.DateField: ["date"],
         f.DateTimeField: ["time", "datetime"],
@@ -85,6 +85,15 @@ class ModelConverter(ModelConverterBase):
         kwargs["validators"].append(validators.Length(max=field.length))
         return f.TextField(**kwargs)
     conv_text = conv_string
+
+    def conv_id(self, model, field, kwargs):
+        defaults = {
+            "widget": widgets.HiddenInput()
+        }
+        defaults.update(kwargs)
+        defaults["validators"].append(validators.NumberRange(min=1))
+        return f.IntegerField(**defaults)
+
 
     @regex_converter(r"reference (?P<other_table_name>\w+)")
     def conv_reference(self, model, field, kwargs, other_table_name):
