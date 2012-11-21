@@ -1,6 +1,6 @@
 import re
 from wtforms import validators as v, widgets, fields as f
-from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
+from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH)
 from fields import QuerySelectField
 from form import Form
 
@@ -26,9 +26,9 @@ class ModelConverterBase(object):
         else:
             kwargs["validators"].append(v.Optional())
         # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
-        # TODO: field.length vs IS_LENGTH ?
 
         validators, choices = self.convert_requires(field.requires)
+        #print field.name, field.requires#, validators, choices
         kwargs["validators"].extend(validators)
         if choices:
             return f.SelectField(choices=choices, **kwargs)
@@ -57,6 +57,9 @@ class ModelConverterBase(object):
                     min=w2p_validator.minimum, max=w2p_validator.maximum))
             elif isinstance(w2p_validator, IS_IN_SET):
                 choices = w2p_validator.options()
+            elif isinstance(w2p_validator, IS_LENGTH):
+                validators.append(v.Length(
+                    min=w2p_validator.minsize, max=w2p_validator.maxsize))
         return validators, choices
 
     def unwind_requires(self, requires):
@@ -84,6 +87,7 @@ class ModelConverter(ModelConverterBase):
         f.DateField: ["date"],
         f.DateTimeField: ["time", "datetime"],
         f.FloatField: ["double"],
+        f.TextField: ["string", "text"],
     }
     REGEX_CONVERTERS = {}
 
@@ -109,11 +113,6 @@ class ModelConverter(ModelConverterBase):
             return converter
         return decorator
 
-    def conv_string(self, model, field, kwargs):
-        kwargs["validators"].append(v.Length(max=field.length))
-        return f.TextField(**kwargs)
-    conv_text = conv_string
-
     def conv_id(self, model, field, kwargs):
         defaults = {
             "widget": widgets.HiddenInput()
@@ -121,7 +120,6 @@ class ModelConverter(ModelConverterBase):
         defaults.update(kwargs)
         defaults["validators"].append(v.NumberRange(min=1))
         return f.IntegerField(**defaults)
-
 
     @regex_converter(r"reference (?P<other_table_name>\w+)")
     def conv_reference(self, model, field, kwargs, other_table_name):
