@@ -1,7 +1,8 @@
 import re
-from wtforms import Form, validators, widgets, fields as f
+from wtforms import validators, widgets, fields as f
 from gluon import IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE
 from fields import QuerySelectField
+from form import Form
 
 
 class ModelConverterBase(object):
