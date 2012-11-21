@@ -117,6 +117,29 @@ class QuerySelectFieldTest(BaseDALTest):
         self._db_call(query).select.assert_called_with(orderby=orderby)
 
 
+class TestAllFieldTypes(BaseDALTest):
+
+    def setUp(self):
+        super(TestAllFieldTypes, self).setUp()
+        self.table = self.db.define_table(
+            "all_field_table",
+            Field("string", "string"),
+            Field("text", "text"),
+            Field("boolean", "boolean"),
+            Field("integer", "integer"),
+            Field("double", "double"),
+            Field("decimal", "decimal(3,4)"),
+            Field("date", "date"),
+            Field("time", "time"),
+            Field("datetime", "datetime"),
+        )
+        F = model_form(self.table)
+        self.form = F()
+
+    def test_form_sanity(self):
+        self.assertEqual(len([x for x in self.form]), 10)
+
+
 class TestModelForm(BaseDALTest):
 
     def setUp(self):
