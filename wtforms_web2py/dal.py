@@ -1,6 +1,7 @@
 import re
 from wtforms import validators as v, widgets, fields as f
-from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH)
+from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH,
+                   IS_IN_DB)
 from fields import QuerySelectField
 from form import Form
 
@@ -55,7 +56,7 @@ class ModelConverterBase(object):
             elif isinstance(w2p_validator, IS_FLOAT_IN_RANGE):
                 validators.append(v.NumberRange(
                     min=w2p_validator.minimum, max=w2p_validator.maximum))
-            elif isinstance(w2p_validator, IS_IN_SET):
+            elif isinstance(w2p_validator, (IS_IN_SET, IS_IN_DB)):
                 choices = w2p_validator.options()
             elif isinstance(w2p_validator, IS_LENGTH):
                 validators.append(v.Length(
