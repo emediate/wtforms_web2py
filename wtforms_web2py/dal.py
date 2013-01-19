@@ -29,7 +29,6 @@ class ModelConverterBase(object):
         # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
 
         validators, choices = self.convert_requires(field.requires)
-        #print field.name, field.requires#, validators, choices
         kwargs["validators"].extend(validators)
         if choices:
             return f.SelectField(choices=choices, **kwargs)

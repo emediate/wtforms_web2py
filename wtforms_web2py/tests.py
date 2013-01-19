@@ -9,7 +9,7 @@ import gluon
 from gluon import (DAL, Field, IS_EMPTY_OR, IS_IN_SET, IS_INT_IN_RANGE,
                    IS_IN_DB, IS_LIST_OF)
 
-from fields import MySelectField, QuerySelectField
+from fields import QuerySelectField
 from dal import model_form, ModelConverter
 
 
@@ -42,38 +42,18 @@ def _make_row(id, name):
     return row
 
 
-# WTF?
-class TestMySelectField(unittest.TestCase):
-
-    def setUp(self):
-        class MyForm(Form):
-            CHOICES = (
-                (1, "one"),
-                (2, "two"),
-                (3, "three"),
-            )
-            select = MySelectField("label", [v.Optional()],
-                                choices=CHOICES)
-        self.form = MyForm()
-
-    def test_with_empty_formdata(self):
-        assert self.form.validate
-        assert self.form.data["select"] == None
-
-    def test_empty_choice(self):
-        data = DummyPostData({
-            "select": "__None",
-        })
-        if self.form.validate():
-            pass
-            #print "valid", form.data
-        else:
-            pass
-            #print "invaid", form.errors
-
-
-
 class BaseDALTest(unittest.TestCase):
+
+    """
+    Records what DAL should return for specific queries, and then in
+    `.trearDown()` checks that it was really called with these queries::
+
+        self.mock_db_query(query=query, response=whatever)
+
+    It's also possible to additionally check other arguments of a call to DAL::
+
+        self._db_call(query).select.assert_called_with(orderby=orderby)
+    """
 
     def setUp(self):
         db = self.db = DAL(None)
@@ -83,6 +63,7 @@ class BaseDALTest(unittest.TestCase):
     def mock_db_query(self, query, response):
         db_set = Mock(**{"select.return_value": response})
         self._check_query = query
+        self._old_dal_call = self.db.__class__.__call__
         self._db_call = self.db.__class__.__call__ = \
                 Mock(return_value=db_set)
 
@@ -90,6 +71,8 @@ class BaseDALTest(unittest.TestCase):
         if getattr(self, "_check_query", False):
             self._db_call.assert_called_with(self._check_query)
         gluon.current = self._saved_current
+        if getattr(self, "_old_dal_call", False):
+            self.db.__class__.__call__ = self._old_dal_call
 
 
 class QuerySelectFieldTest(BaseDALTest):
