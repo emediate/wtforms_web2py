@@ -1,9 +1,12 @@
+# encoding: utf-8
 import sys
 import unittest
 from mock import Mock
 
 from wtforms import Form, validators as v
 from wtforms.compat import text_type
+from wtforms.fields import TextField
+from wtforms.widgets import TextInput
 
 import gluon
 from gluon import (DAL, Field, IS_EMPTY_OR, IS_IN_SET, IS_INT_IN_RANGE,
@@ -223,6 +226,40 @@ class TestValidators(unittest.TestCase):
     def test_some_more_validators(self):
         validators, _ = self.converter.convert_requires(IS_INT_IN_RANGE(1, 100))
         self.assertIsInstance(validators[0], v.NumberRange)
+
+
+class DummyField(object):
+    def __init__(self, data, name='f', label='', id='', type='TextField'):
+        self.data = data
+        self.name = name
+        self.label = label
+        self.id = id
+        self.type = type
+    _value       = lambda x: x.data
+    __unicode__  = lambda x: x.data
+    __str__      = lambda x: x.data
+    __call__     = lambda x, **k: x.data
+    __iter__     = lambda x: iter(x.data)
+    iter_choices = lambda x: iter(x.data)
+
+
+class EncodingIssuesTest(unittest.TestCase):
+
+    class F(Form):
+        a = TextField(default='whatever')
+
+    def test_web2py_to_wtforms(self):
+        # web2py can throw `str`-s into wtforms
+        field = DummyField('ыыы', name='bar', label='label', id='id')
+        html = TextInput()(field)
+        self.assertEqual('<input id="id" name="bar" type="text" value="ыыы">',
+                         html)
+
+    def test_wtforms_to_web2py(self):
+        # web2py expects that field's .xml() method returns `str`
+        field = self.F().a
+        self.assertIsInstance(field.__html__(), unicode)
+        self.assertIsInstance(field.xml(), str)
 
 
 if __name__ == "__main__":
