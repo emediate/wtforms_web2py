@@ -1,7 +1,7 @@
 from wtforms import (Form, SelectField, IntegerField, TextField, validators)
 from wtforms.validators import Optional, ValidationError
 from wtforms.widgets import Select
-from wtforms.fields import SelectFieldBase
+from wtforms.fields import *
 
 
 class QuerySelectField(SelectFieldBase):

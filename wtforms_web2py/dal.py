@@ -1,12 +1,14 @@
 import re
-from wtforms import validators as v, widgets, fields as f
+from wtforms import validators as v, widgets
 from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH,
                    IS_IN_DB)
-from fields import QuerySelectField
+from . import fields
 from form import Form
 
 
 class ModelConverterBase(object):
+
+    fields = fields
 
     def __init__(self, converters):
         self.converters = converters
@@ -31,7 +33,7 @@ class ModelConverterBase(object):
         validators, choices = self.convert_requires(field.requires)
         kwargs["validators"].extend(validators)
         if choices:
-            return f.SelectField(choices=choices, **kwargs)
+            return self.fields.SelectField(choices=choices, **kwargs)
 
         ftype = field.type
         if ftype in self.converters:
@@ -82,12 +84,12 @@ class ModelConverterBase(object):
 class ModelConverter(ModelConverterBase):
 
     DEFAULT_SIMPLE_CONVERSIONS = {
-        f.IntegerField: ["integer"],
-        f.BooleanField: ["boolean"],
-        f.DateField: ["date"],
-        f.DateTimeField: ["time", "datetime"],
-        f.FloatField: ["double"],
-        f.TextField: ["string", "text"],
+        "IntegerField": ["integer"],
+        "BooleanField": ["boolean"],
+        "DateField": ["date"],
+        "DateTimeField": ["time", "datetime"],
+        "FloatField": ["double"],
+        "TextField": ["string", "text"],
     }
     REGEX_CONVERTERS = {}
 
@@ -104,7 +106,7 @@ class ModelConverter(ModelConverterBase):
 
     def make_simple_converter(self, field_type):
         def _converter(model, field, kwargs):
-            return field_type(**kwargs)
+            return getattr(self.fields, field_type)(**kwargs)
         return _converter
 
     def regex_converter(regex):
@@ -119,18 +121,18 @@ class ModelConverter(ModelConverterBase):
         }
         defaults.update(kwargs)
         defaults["validators"].append(v.NumberRange(min=1))
-        return f.IntegerField(**defaults)
+        return self.fields.IntegerField(**defaults)
 
     @regex_converter(r"reference (?P<other_table_name>\w+)")
     def conv_reference(self, model, field, kwargs, other_table_name):
         from gluon import current
         db = current.globalenv["db"]
         other_table = getattr(db, other_table_name)
-        return QuerySelectField(query=other_table, **kwargs)
+        return self.fields.QuerySelectField(query=other_table, **kwargs)
 
     @regex_converter(r"decimal\((?P<places>\d+),\s*(?P<rounding>\d+)\)")
     def conv_decimal(self, model, field, kwargs, places, rounding):
-        return f.DecimalField(places=places, rounding=rounding, **kwargs)
+        return self.fields.DecimalField(places=places, rounding=rounding, **kwargs)
 
 
 def model_fields(model, only=None, exclude=None, field_args=None, converter=None):
