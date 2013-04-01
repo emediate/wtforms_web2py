@@ -89,7 +89,8 @@ class ModelConverter(ModelConverterBase):
         "DateField": ["date"],
         "DateTimeField": ["time", "datetime"],
         "FloatField": ["double"],
-        "TextField": ["string", "text"],
+        "TextField": ["string"],
+        "TextAreaField": ["text"],
     }
     REGEX_CONVERTERS = {}
 
