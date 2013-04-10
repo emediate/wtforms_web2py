@@ -1,7 +1,7 @@
 import re
 from wtforms import validators as v, widgets
 from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH,
-                   IS_IN_DB)
+                   IS_IN_DB, IS_NOT_EMPTY, IS_EMAIL)
 from . import fields
 from form import Form
 
@@ -24,16 +24,16 @@ class ModelConverterBase(object):
         if field_args:
             kwargs.update(field_args)
 
-        if field.required:
-            kwargs["validators"].append(v.Required())
-        else:
-            kwargs["validators"].append(v.Optional())
-        # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
-
-        validators, choices = self.convert_requires(field.requires)
+        validators, choices, required = self.convert_requires(field.requires)
         kwargs["validators"].extend(validators)
         if choices:
             return self.fields.SelectField(choices=choices, **kwargs)
+
+        if field.required or required:
+            kwargs["validators"].append(v.Required())
+        else:
+            kwargs["validators"].append(v.Optional())
+            # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
 
         ftype = field.type
         if ftype in self.converters:
@@ -50,19 +50,27 @@ class ModelConverterBase(object):
     def convert_requires(self, requires):
         validators = []
         choices = []
+        required = False
         for w2p_validator in self.unwind_requires(requires):
             if isinstance(w2p_validator, IS_INT_IN_RANGE):
                 validators.append(v.NumberRange(
                     min=w2p_validator.minimum, max=w2p_validator.maximum - 1))
             elif isinstance(w2p_validator, IS_FLOAT_IN_RANGE):
                 validators.append(v.NumberRange(
-                    min=w2p_validator.minimum, max=w2p_validator.maximum))
+                    min=w2p_validator.minimum, max=w2p_validator.maximum,))
             elif isinstance(w2p_validator, (IS_IN_SET, IS_IN_DB)):
                 choices = w2p_validator.options()
             elif isinstance(w2p_validator, IS_LENGTH):
                 validators.append(v.Length(
-                    min=w2p_validator.minsize, max=w2p_validator.maxsize))
-        return validators, choices
+                    min=w2p_validator.minsize, max=w2p_validator.maxsize,
+                    message=w2p_validator.error_message))
+            elif isinstance(w2p_validator, IS_NOT_EMPTY):
+                required = True
+                validators.append(v.DataRequired(
+                    message=w2p_validator.error_message))
+            elif isinstance(w2p_validator, IS_EMAIL):
+                validators.append(v.Email(message=w2p_validator.error_message))
+        return validators, choices, required
 
     def unwind_requires(self, requires):
         """
