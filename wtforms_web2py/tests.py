@@ -10,7 +10,7 @@ from wtforms.widgets import TextInput
 
 import gluon
 from gluon import (DAL, Field, IS_EMPTY_OR, IS_IN_SET, IS_INT_IN_RANGE,
-                   IS_IN_DB, IS_LIST_OF)
+                   IS_IN_DB, IS_LIST_OF, IS_NOT_EMPTY, IS_EMAIL)
 
 from fields import QuerySelectField
 from dal import model_form, ModelConverter
@@ -218,14 +218,23 @@ class TestValidators(unittest.TestCase):
     def test_unwinding(self):
         validators = self.converter.unwind_requires([
             IS_LIST_OF(IS_EMPTY_OR(IS_INT_IN_RANGE(0, 100))),
-            IS_IN_SET((1,2,3)),
+            IS_IN_SET((1, 2, 3)),
         ])
         names = [v.__class__.__name__ for v in validators]
         self.assertEquals(names, ['IS_LIST_OF', 'IS_IN_SET', 'IS_EMPTY_OR', 'IS_INT_IN_RANGE'])
 
     def test_some_more_validators(self):
-        validators, _ = self.converter.convert_requires(IS_INT_IN_RANGE(1, 100))
+        validators, _, required = self.converter.convert_requires(IS_INT_IN_RANGE(1, 100))
         self.assertIsInstance(validators[0], v.NumberRange)
+
+    def test_is_not_empty_validator(self):
+        validators, _, required = self.converter.convert_requires(IS_NOT_EMPTY(''))
+        self.assertIsInstance(validators[0], v.DataRequired)
+        self.assertTrue(required)
+
+    def test_email_validator(self):
+        validators, _, required = self.converter.convert_requires(IS_EMAIL('vasya@mail.ru'))
+        self.assertIsInstance(validators[0], v.Email)
 
 
 class DummyField(object):
