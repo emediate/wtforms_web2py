@@ -1,14 +1,29 @@
 import re
-from wtforms import validators as v, widgets
+from wtforms import validators as v, widgets, fields as wtforms_fields
 from gluon import (IS_IN_SET, IS_INT_IN_RANGE, IS_FLOAT_IN_RANGE, IS_LENGTH,
                    IS_IN_DB)
-from . import fields
+from . import fields as web2py_wtforms_fields
 from form import Form
+
+
+class _FieldsProxy(object):
+
+    def __init__(self, *objects):
+        self.objects = objects
+
+    def __getattr__(self, name):
+        for obj in self.objects:
+            try:
+                return getattr(obj, name)
+            except AttributeError:
+                continue
+        raise AttributeError("Can't find field %r." % name)
 
 
 class ModelConverterBase(object):
 
-    fields = fields
+    #: ``getattr(fields, field_name)()`` should return field instance.
+    fields = _FieldsProxy(web2py_wtforms_fields, wtforms_fields)
 
     def __init__(self, converters):
         self.converters = converters
