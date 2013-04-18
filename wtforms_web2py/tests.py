@@ -261,7 +261,7 @@ class EncodingIssuesTest(unittest.TestCase):
         # web2py can throw `str`-s into wtforms
         field = DummyField('ыыы', name='bar', label='label', id='id')
         html = TextInput()(field)
-        self.assertEqual('<input id="id" name="bar" type="text" value="ыыы">',
+        self.assertEqual(u'<input id="id" name="bar" type="text" value="ыыы">',
                          html)
 
     def test_wtforms_to_web2py(self):
