@@ -20,13 +20,105 @@ class _FieldsProxy(object):
         raise AttributeError("Can't find field %r." % name)
 
 
-class ModelConverterBase(object):
+class FieldConverter(object):
+
+    def __init__(self, model_converter):
+        self.model_converter = model_converter
+
+    def can_convert(self, field):
+        raise NotImplementedError
+
+    def convert(self, field, kwargs):
+        '''
+        Convert dal field to wtforms field.
+
+        Args:
+            * `field`: dal field;
+            * kwargs: arguments for wtforms field constructor.
+        '''
+        raise NotImplementedError
+
+
+class SimpleFieldConverter(FieldConverter):
+
+    def __init__(self, model_converter, dal_field_name, wtforms_field_name):
+        self.model_converter = model_converter
+        self.dal_field_name = dal_field_name
+        self.wtforms_field_name = wtforms_field_name
+
+    def can_convert(self, field):
+        return self.dal_field_name == field.type
+
+    def convert(self, field, kwargs):
+        return getattr(self.model_converter.fields, self.wtforms_field_name)(**kwargs)
+
+
+class RegexFieldConverter(FieldConverter):
+
+    def can_convert(self, field):
+        return self.regex.match(field.type)
+
+
+class ReferenceConverter(RegexFieldConverter):
+    regex = re.compile(r"reference (?P<other_table_name>\w+)")
+
+    def convert(self, field, kwargs):
+        from gluon import current
+        db = current.globalenv["db"]
+        m = self.regex.match(field.type)
+        other_table_name = m.groupdict()['other_table_name']
+        other_table = getattr(db, other_table_name)
+        return self.model_converter.fields.QuerySelectField(query=other_table, **kwargs)
+
+
+class DecimalConverter(RegexFieldConverter):
+    regex = re.compile(r"decimal\((?P<places>\d+),\s*(?P<rounding>\d+)\)")
+
+    def convert(self, field, kwargs):
+        m = self.regex.match(field.type)
+        kwargs.update(m.groupdict())
+        return self.model_converter.fields.DecimalField(**kwargs)
+
+
+class IdConverter(FieldConverter):
+
+    def can_convert(self, field):
+        return field.type == 'id'
+
+    def convert(self, field, kwargs):
+        defaults = {
+            "widget": widgets.HiddenInput()
+        }
+        defaults.update(kwargs)
+        defaults["validators"].append(v.NumberRange(min=1))
+        return self.model_converter.fields.IntegerField(**defaults)
+
+
+class ModelConverter(object):
+
+    DEFAULT_SIMPLE_CONVERSIONS = {
+        "IntegerField": ["integer"],
+        "BooleanField": ["boolean"],
+        "DateField": ["date"],
+        "DateTimeField": ["time", "datetime"],
+        "FloatField": ["double"],
+        "TextField": ["string"],
+        "TextAreaField": ["text"],
+    }
+    DEFAULT_CONVERTERS = [DecimalConverter, IdConverter, ReferenceConverter]
 
     #: ``getattr(fields, field_name)()`` should return field instance.
     fields = _FieldsProxy(web2py_wtforms_fields, wtforms_fields)
 
-    def __init__(self, converters):
-        self.converters = converters
+    def __init__(self, converters=()):
+        self.converters = list(converters)
+        for field_type, dal_fields in self.DEFAULT_SIMPLE_CONVERSIONS.iteritems():
+            for name in dal_fields:
+                converter = SimpleFieldConverter(self, name, field_type)
+                self.converters.append(converter)
+
+        for cls in self.DEFAULT_CONVERTERS:
+            self.converters.append(cls(self))
 
     def convert(self, model, field, field_args=None):
         kwargs = {
@@ -50,17 +142,9 @@ class ModelConverterBase(object):
             kwargs["validators"].append(v.Optional())
             # TODO: field.unique vs IS_EMPTY_OR vs IS_NOT_EMPTY ?
 
-        ftype = field.type
-        if ftype in self.converters:
-            return self.converters[ftype](model, field, kwargs)
-        else:
-            for regex, converter in self.REGEX_CONVERTERS.items():
-                m = regex.match(ftype)
-                if m:
-                    return converter(model, field, kwargs, **m.groupdict())
-            converter = getattr(self, "conv_%s" % ftype, None)
-            if converter is not None:
-                return converter(model, field, kwargs)
+        for converter in self.converters:
+            if converter.can_convert(field):
+                return converter.convert(field, kwargs)
 
     def convert_requires(self, requires):
         validators = []
@@ -104,59 +188,6 @@ class ModelConverterBase(object):
         return requires
 
 
-class ModelConverter(ModelConverterBase):
-
-    DEFAULT_SIMPLE_CONVERSIONS = {
-        "IntegerField": ["integer"],
-        "BooleanField": ["boolean"],
-        "DateField": ["date"],
-        "DateTimeField": ["time", "datetime"],
-        "FloatField": ["double"],
-        "TextField": ["string"],
-        "TextAreaField": ["text"],
-    }
-    REGEX_CONVERTERS = {}
-
-    def __init__(self):
-        converters = {}
-        for field_type, dal_fields in self.DEFAULT_SIMPLE_CONVERSIONS.iteritems():
-            converter = self.make_simple_converter(field_type)
-            for name in dal_fields:
-                converters[name] = converter
-        for name, member in self.__class__.__dict__.items():
-            if callable(member) and hasattr(member, "regex"):
-                self.REGEX_CONVERTERS[member.regex] = getattr(self, name)
-        super(ModelConverter, self).__init__(converters=converters)
-
-    def make_simple_converter(self, field_type):
-        def _converter(model, field, kwargs):
-            return getattr(self.fields, field_type)(**kwargs)
-        return _converter
-
-    def regex_converter(regex):
-        def decorator(converter):
-            converter.regex = re.compile(regex)
-            return converter
-        return decorator
-
-    def conv_id(self, model, field, kwargs):
-        defaults = {
-            "widget": widgets.HiddenInput()
-        }
-        defaults.update(kwargs)
-        defaults["validators"].append(v.NumberRange(min=1))
-        return self.fields.IntegerField(**defaults)
-
-    @regex_converter(r"reference (?P<other_table_name>\w+)")
-    def conv_reference(self, model, field, kwargs, other_table_name):
-        from gluon import current
-        db = current.globalenv["db"]
-        other_table = getattr(db, other_table_name)
-        return self.fields.QuerySelectField(query=other_table, **kwargs)
-
-    @regex_converter(r"decimal\((?P<places>\d+),\s*(?P<rounding>\d+)\)")
-    def conv_decimal(self, model, field, kwargs, places, rounding):
-        return self.fields.DecimalField(places=places, rounding=rounding, **kwargs)
 
 
 def model_fields(model, only=None, exclude=None, field_args=None, converter=None):
