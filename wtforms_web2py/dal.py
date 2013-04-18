@@ -22,6 +22,13 @@ class _FieldsProxy(object):
 
 class FieldConverter(object):
 
+    """
+    Base class for field converters.
+
+    Instance of field converter is capable of converting an instance of DAL
+    field to an instance of WTForms field.
+    """
+
     def __init__(self, model_converter):
         self.model_converter = model_converter
 
@@ -30,7 +37,7 @@ class FieldConverter(object):
 
     def convert(self, field, kwargs):
         '''
-        Convert dal field to wtforms field.
+        Converts dal field to wtforms field.
 
         Args:
             * `field`: dal field;
@@ -107,7 +114,7 @@ class ModelConverter(object):
     }
     DEFAULT_CONVERTERS = [DecimalConverter, IdConverter, ReferenceConverter]
 
-    #: ``getattr(fields, field_name)()`` should return field instance.
+    #: ``getattr(fields, field_name)`` should return field class.
     fields = _FieldsProxy(web2py_wtforms_fields, wtforms_fields)
 
     def __init__(self, converters=()):
@@ -188,8 +195,6 @@ class ModelConverter(object):
         return requires
 
 
-
-
 def model_fields(model, only=None, exclude=None, field_args=None, converter=None):
 
     converter = converter or ModelConverter()
@@ -212,5 +217,16 @@ def model_fields(model, only=None, exclude=None, field_args=None, converter=None
 
 def model_form(table, base_class=Form, only=None, exclude=None, field_args=None,
                converter=None):
+    """
+    Make a WTForms form from DAL `table`.
+
+    Args:
+        * base_class: base class for the new form, ``wtforms.Form`` by default.
+        * only: list of fields to include into the new form.
+        * exclude: list of fields to exclude from the new form.
+        * field_args: field_name -> kwargs dict mapping.
+        * converter: instance of model converter.  Converter must have method
+                     `convert(table, field, field_kwargs)`.
+    """
     field_dict = model_fields(table, only, exclude, field_args, converter)
     return type(table._tablename.title() + "Form", (base_class,), field_dict)

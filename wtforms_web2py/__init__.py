@@ -1,5 +1,5 @@
 # web2py works internally with bytestring, and WTForms uses unicode.
-# So there we trying to monkeypatch WTForms to convert to/from unicode.
+# So here we are trying to monkeypatch WTForms to convert to/from unicode.
 # Another option is to ``sys.setdefaultencoding('utf-8')``.
 
 # HACK! In local copy of wtforms.compat text_type redefined to be a subclass of
